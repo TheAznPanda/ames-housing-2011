@@ -1,0 +1,318 @@
+---
+title: "Analyzing the amesHousing2011 Data"
+date: today
+author: Johnathan Pham
+format:
+  html:
+    toc: true
+    embed-resources: true
+---
+
+```{r, include=FALSE}
+#| label: optionsSetup
+knitr::opts_chunk$set(
+  message=FALSE,
+  echo=FALSE
+)
+```
+
+# Obtaining the data
+
+```{r}
+pacman::p_load(tidyverse, dplyr, scales)
+df <- read_csv("amesHousing2011.csv")
+```
+
+```{r}
+newdf <- select(df, MSSubClass, MSZoning, LotArea, BldgType, HouseStyle, OverallQual, YearBuilt, "YearRemod/Add", ExterQual, HeatingQC, TotRmsAbvGrd, Functional, SalePrice)
+newdf <- filter(newdf, LotArea < 60000)
+newdf$MSSubClass <- factor(newdf$MSSubClass)
+newdf$MSZoning <- factor(newdf$MSZoning)
+newdf$BldgType <- factor(newdf$BldgType)
+newdf$HouseStyle <- factor(newdf$HouseStyle)
+newdf$ExterQual <- factor(newdf$ExterQual,
+                          ordered=TRUE,
+                          levels=c("Ex","Gd","TA","Fa","Po"))
+newdf$HeatingQC <- factor(newdf$HeatingQC,
+                          ordered=TRUE,
+                          levels=c("Ex","Gd","TA","Fa","Po"))
+newdf$OverallQual <- factor(newdf$OverallQual,
+                            ordered=TRUE,
+                            levels=c("10","9","8","7","6","5","4","3","2","1"))
+newdf$Functional <- factor(newdf$Functional, 
+                           ordered=TRUE,
+                           levels=c("Typ","Min1","Min2","Mod","Maj1","Maj2","Sev","Sal"))
+```
+
+This section of the report loaded the $amesHousing2011.csv$ file. The file consisted of 82 variables and 2930 observations. After careful tweaking of the data, I have removed many variables and observations, and changed the type of some variables. I have also created the correct order for some ordered variables.
+
+# Data Dictionary
+
+- Type of Dwelling (MSSubClass): The type of dwelling of the house sold.	
+
+- General Zone (MSZoning): The general zoning classification of the house sold.
+		
+- Area of Lot (LotArea): The size of the lot in square feet of the house sold.
+	
+- Building Type (BldgType): The type of house sold.
+		
+- Style of House (HouseStyle): The style of the house sold.
+	
+- Overall House Quality (OverallQual): The overall rating of the material and finish of the house sold.
+
+- Year Built (YearBuilt): The year that the house sold was originally constructed.
+
+- Year Remodelled (YearRemod/Add): The year the house sold had a remodel (same as construction date if no remodeling or additions).
+
+- External Quality (ExterQual): The quality of the exterior material of the house sold.
+		
+- Heating Quality (HeatingQC): The condition and quality of the heating of the house sold.
+
+- Total Number of Rooms (TotRmsAbvGrd): The total number of rooms that are above grade, does not include bathrooms.
+
+- Home Functionality (Functional): The amount of deductions received from each home, typical functionality with no deductions.
+
+- Sale Price of the House (SalePrice): The price of the house when the house was sold.
+
+# Data Description
+
+## Part 1: Numerical Description
+
+The following is the dataframe of amesHousing2011.csv, simplified to only 13 categories:
+```{r}
+str(newdf)
+```
+
+In the Type of Dwelling, the following summary is provided:
+```{r}
+summary(newdf$MSSubClass)
+```
+Fun Fact: We can see that almost half of the houses sold in the dataframe are 1 story, 1946 and newer styles of homes (020).
+```{r}
+(dfPriceByClass <- df |>
+   select(c(MSSubClass,SalePrice)) |>
+   group_by(MSSubClass) |>
+   summarize(avPriceByClass = mean(SalePrice),n=n()) |>
+   arrange(desc(avPriceByClass)))
+```
+A post-WWII two story house (060) looks to be the most expensive, while a pre-WWII one story home (030) looks to be the least expensive.
+
+We can table the General Zone (MSZoning) the same way.
+```{r}
+(dfPriceByClass <- newdf |>
+   select(c(MSZoning,SalePrice)) |>
+   group_by(MSZoning) |>
+   summarize(avPriceByClass = mean(SalePrice),n=n()) |>
+   arrange(desc(avPriceByClass)))
+```
+This table is more obvious, as Floating Village Residential is the most expensive, since the cost of construction is more expensive. I chose to keep this variable because it shows a distinct difference of cost between a house built in a good zone compared to a house built in a worse zone.
+
+```{r}
+table(newdf$OverallQual,newdf$ExterQual)
+```
+Above is a contingency table between Overall Quality and External Quality. We can see a correlation between a high overall quality and a high external quality, and same for a low overall quality and a low external quality. This table also shows us that most of the houses in this list have an overall quality rating of about 4-6, and an external quality of good and average/typical.
+
+```{r}
+table(newdf$HouseStyle,newdf$TotRmsAbvGrd)
+```
+Looking at another contingency table between House Style and Total Number of Rooms, we can see that one-stories tend to have less rooms than two-stories, as expected. These variables can be used to find outliers in the data.
+
+```{r}
+table(newdf$Functional,newdf$OverallQual)
+```
+
+Similarly, the Overall Quality can be compared to Home Functionality, and a higher functionality leads to a higher overall quality. As the functionality decreases, the overall quality also decreases. By comparing these two, outliers can be found, such as the Salvage Only houses and the Severe Damage houses.
+
+```{r}
+newdf <- filter(newdf, Functional != "Sev" & Functional != "Sal")
+```
+
+```{r}
+(dfPriceByClass <- newdf |>
+   select(c(YearBuilt,SalePrice)) |>
+   group_by(YearBuilt) |>
+   summarize(avPriceByClass = mean(SalePrice),n=n()) |>
+   arrange(desc(avPriceByClass)))
+```
+The table above shows that newer houses, built around 2005-2009, tend to be higher in price than houses that were older. The YearBuilt variable is a good variable to keep since there is a distinct difference in price between newer houses and older houses.
+
+```{r}
+(dfPriceByClass <- newdf |>
+   select(c(MSZoning,LotArea)) |>
+   group_by(MSZoning) |>
+   summarize(avPriceByClass = mean(LotArea),n=n()) |>
+   arrange(desc(avPriceByClass)))
+```
+This table shows that prices for houses in a higher density is cheaper than houses that are in a low density, or an agricultural/industrial zone.
+
+```{r}
+table(newdf$BldgType,newdf$TotRmsAbvGrd)
+```
+Unexpectedly, I would have thought there would be more rooms in two family conversions and duplexes, but it does not seem the case, as the number of rooms seems to be around the same for each type of building.
+
+```{r}
+table(newdf$BldgType,newdf$MSZoning)
+```
+With the table above, we can see that duplexes are found more in low density areas, and townhouses are found more in medium density areas.
+
+Looking at the Building Type (BldgType), we can see that `r {round(table(df$BldgType)[[1]]/nrow(df)*100,1)}` percent of the homes sold were single-family homes.
+
+```{r}
+table(df$BldgType)
+```
+
+
+
+## Part 2: Visual Description
+
+### Introduction
+
+In this section, we will observe multiple visual descriptions of plots in order to analyze the relationship between various different variables, in order to find the most important factors that affect Sale Price.
+
+### Visual Data Plots
+
+```{r}
+ggplot(newdf, aes(x = YearBuilt, y = SalePrice)) +
+  geom_jitter(width = 0.5, height = 0.2) +
+  labs(x = "Year Built", y = "Sale Price") +
+  labs(title = "Scatterplot of Year Built vs. Sale Price", caption = "Note: Y-axis has been adjusted to show linear correlation.") +
+  scale_y_continuous(labels = scales::comma, trans = "log") +
+  geom_smooth(method = "lm", color = "red", se = FALSE)
+```
+
+The plot above shows the relationship between Sale Price and Year Built. A positive linear correlation is illustrated between the two, meaning that as the year built increases, the sale price also increases. This plot showed me that YearBuilt is an essential variable to keep.
+
+```{r}
+ggplot(newdf, aes(x = Functional, y = SalePrice, fill = Functional)) +
+  geom_bar(stat = "summary", fun = "mean") +
+  labs(x = "Functional", y = "Mean Sale Price") +
+  labs(title = "Sale Price by Functional", caption = "Data based on mean sale prices.") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_brewer(palette = "OrRd")
+```
+With the bar plot above, we can see that homes with typical functionality sell for more than homes that have deductions. The houses with minor deductions and moderate deductions seem to sell for around the same amount. Note that this graph does not include two properties that have severe or salvage functionalities, as they were removed as outliers. This graph made me want to keep Functional, since more deductions lead to a lower sell price.
+
+```{r}
+# Sorts the occurences of each category ExterQual in descending order.
+newdf <- newdf %>%
+  mutate(ExterQual = factor(ExterQual, levels = names(sort(table(ExterQual), decreasing = TRUE))))
+
+
+ggplot(newdf, aes(x = ExterQual, fill = HeatingQC)) +
+  geom_bar() +
+  labs(x = "Exterior Quality", y = "Count", fill = "Heating Quality") +
+  labs(title = "Exterior Quality vs Heating Quality", caption = "Data is sorted by occurences of each category in ExterQual in descending order.") +
+  scale_fill_brewer(palette = "Spectral") +
+  scale_y_continuous(labels = scales::comma)
+```
+This stacked bar plot between ExterQual and HeatingQC shows us two things: a) Most of the houses in the dataframe have an Average/Typical exterior quality, and b) Good and Excellent exterior quality houses have high proportions of Excellent heating quality.
+
+```{r}
+ggplot(newdf, aes(x = MSZoning, y = SalePrice, fill = MSZoning)) +
+  geom_violin(trim = FALSE) +
+  labs(x = "MS Zoning", y = "Sale Price", fill = "MS Zoning") +
+  labs(title = "MS Zoning vs Sale Price") +
+  scale_fill_brewer(palette = "YlGnBu") +
+  scale_y_continuous(labels = scales::comma)
+```
+With the graph above, I noticed that homes that were in an Agriculture zone were removed, and this is probably due to removing Lot Areas that were greater than 60,000 square feet. This violin plot also visually shows that floating village zones have more expensive houses than industrial and commercial zones. It also shows that low density residential zones have a couple outliers that make the violin tall and long. The uniqueness of the MSZoning variable made me want to keep it, since analyzing it in the future seems interesting.
+
+## Conclusion
+
+After looking at these visual diagrams of the relationships between some of the variables, we can conclude that we found some variables that definitely affect the sale price. We also were able to find some other interesting things, such as homes in the agricultural zones were removed due to a filter of Lot Area earlier on.
+
+# Regression Analysis
+
+## Model 1: Overall Quality
+```{r}
+m1 <- lm(SalePrice ~ TotRmsAbvGrd + MSZoning, data = newdf)
+summary(m1)
+```
+The summary above shows the relationship between SalePrice and TotRmsAbvGrd and MSZoning. We can see that the number of rooms in a house significantly influences SalePrice, shown by the high coefficients, while the type of zoning is not very significant towards determining sale price. More rooms are associated with high sale prices, and floating village and low density areas means higher sale prices. Using this information, we can remove MSZoning from the list of variables that can help determine SalePrice.
+
+## Model 2: Year Built
+
+```{r}
+m2 <- lm(SalePrice ~ YearBuilt, data = newdf)
+summary(m2)
+```
+This model shows that YearBuilt significantly influences SalePrice. For each additional year increase in the year built, there is an increase of $1,469 in sale price. While statistically significant, the R-squared value of 0.3211 suggests that LotArea alone only explains about 32.11% of the variability observed in SalePrice.
+
+## Model 3: OLSRR Subset Regression
+
+```{r}
+pacman::p_load(olsrr)
+model <- lm(SalePrice ~ HouseStyle + OverallQual + ExterQual + HeatingQC + Functional, data=newdf)
+(k <- ols_step_best_subset(model))
+plot(k)
+```
+Based on the `ols_step_best_subset()` used above, the index with the largest increase in R-squared value shows that it is the best model with the variables in the linear model. We can create a model with those variables.
+
+```{r}
+m3 <- lm(SalePrice ~ OverallQual + ExterQual, data=newdf)
+summary(m3)
+```
+
+The model above shows two very significant variables, OverallQual and ExterQual. This is easy to tell because we can look at the significance codes to tell which variable is a good determinant of SalePrice. Almost every type of quality is significant to SalePrice, which makes the entire variable a good choice to keep.
+
+## Model 4: Manually Specified
+```{r}
+m4 <- lm(SalePrice ~ OverallQual + ExterQual + TotRmsAbvGrd + YearBuilt, data=newdf)
+summary(m4)
+```
+
+This model takes the best explanatory variables from the models above. Almost every variable is statistically significant in explaining SalePrice. There is also a high R-sqaured value, meaning that the model explains around 79% of the variability observed in SalePrice.
+
+## Conclusion
+
+After looking at these models, we found variables that were very significant to determining sale price, such as overall quality, external quality, heating quality, total rooms, and year built. We also found variables that not as significant as I thought, such as general zone. By doing this, we can narrow down the amount of variables that significantly affect sale price, and get closer to finding the best variables that determine the sale price of a house.
+
+# Regression Diagnostics
+
+```{r}
+summary(m4)
+```
+
+Above is a reprint of the model 4 that we found above. Overall, the model seems to fit the data reasonably well, explaining a significant portion of the variance in sale prices.
+
+```{r}
+plot(m4, which=1)
+```
+
+The plot above shows the difference between the residuals and the fitted values. Looking at the plot, I don't see many outliers except the possibility of 2 and 25. We can also see that the red solid line is close to the dotted dashed line. This means that the mean of the residuals have a mean of approximately zero. We can also cancel out any thoughts of a pattern, except for the fact that there are a bunch more dots on the left than on the right.
+
+```{r}
+plot(m4, which=2)
+```
+
+Looking at this Q-Q graph, we can see that the dots somewhat follow the dashed line. Towards the extremes of the graph, it seems to veer away from the dashed line, but the use of this graph tells us that the residuals should be normally distributed.
+
+```{r}
+plot(m4, which=3)
+```
+
+This plot above is a scale-location plot. The red line seems to be horizontal in the beginning, but begins to slope upwards as the value of the fitted values increase. This shouldn't be an issue, as without a clear pattern shown on the plot, we can assume that there is homoscedasticity.
+
+```{r}
+plot(m4, which=5)
+```
+
+This plot shows the residuals vs leverage graph. Using this graph, we can find influential points that we may want to remove. The dotted lines at the top and bottom of the graph represent Cook's distance, and since none of the points are past those lines, there are not many influential points.
+
+## Conclusion
+
+The diagnostic plots were used to find if the calculated model and the assumptions we made about the data and the model are consistent with the recorded data. From the diagnostic plots that we used, we can see that the model that we found earlier was a good model, since there weren't many problems with the plots that we found.
+
+# Report Summary
+
+In this report, we analyzed the data from $amesHousing2011.csv$ in order to find the best predictors for sale price. We filtered through countless variables and observations in order to remove outliers and unimportant variables. We created numerical and visual descriptions for some of these variables. We then created a model using some of these variables, in order to find variables that were significant in determining sale price. After a model was created, we used regression diagnostics to determine if the model was a good fit for the data.
+
+After all of these steps, we found 4 variables that were the best predictors to sale price:
+
+- OverallQual (Overall Quality)
+
+- ExterQual (External Quality)
+
+- TotRmsAbvGrd (Total Number of Rooms)
+
+- YearBuilt (Year Built)
