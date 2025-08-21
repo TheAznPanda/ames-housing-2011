@@ -4,7 +4,7 @@ This project explores housing price determinants using the **AmesHousing2011 dat
 It includes both the rendered report (`index.html`) and the original Quarto source file (`analysis.qmd`) for full transparency and reproducibility.
 
 ## 📄 View the Report
-👉 [Live Report on GitHub Pages](https://YOUR-USERNAME.github.io/ames-housing-2011/)
+👉 [Live Report on GitHub Pages](https://TheAznPanda.github.io/ames-housing-2011/)
 
 ## 📝 Project Overview
 - Conducted exploratory data analysis (EDA) on housing attributes.  
